@@ -8,10 +8,11 @@ class MongoQueue(object):
 	#三种存储状态 0:新加入 1:正在请求 2:请求完成
 	OUTSTANDING,PROCESSING,COMPLETE = range(3)
 
-	def __init__(self, client=None, self_db=None  timeout=1200):
+	def __init__(self, client=None, self_db=None, timeout=1200):
 		self.client = MongoClient() if client is None else client
 		self.db = self.client.cache if self_db is None else self_db
 		self.timeout = timeout
+		self.repair()
 	#此内置函数表示当对象当作判断条件时，会执行这个函数
 	def __nonzero__(self):
 		record = self.db.crawl_queue.find_one({'status':{'$ne':self.COMPLETE}})
@@ -38,6 +39,16 @@ class MongoQueue(object):
 		self.db.crawl_queue.update({'_id':url},{'$set':{'status':self.COMPLETE}})
 	#将队列中的数据进行更新，查看已经超时的数据，并更新
 	def repair(self):
-		record = self.db.crawl_queue.find_and_modify(query={'timeout':{'$lt':datetime.now() - timedelta(seconds=self.timeout)},'status':{'$ne':self.COMPLETE}},update={'$set':{'status':self.OUTSTANDING}})
+		record = self.db.crawl_queue.find_and_modify(query={'timeout':{'$lt':datetime.now() - timedelta(seconds=self.timeout)},'status':self.COMPLETE},update={'$set':{'status':self.OUTSTANDING}})
 		if record:
 			print 'Released:',record['_id']
+
+	def rollback(self, url):
+		record = self.db.crawl_queue.find_and_modify(query={'_id':url}, update={'$set':{'status':self.OUTSTANDING}})
+		if record:
+			print 'rollback success:{}'.format(url)
+		else:
+			print 'rollback error: Check that database'
+	#清除mongodb缓存队列数据库
+	def clear(self):
+		self.db.crawl_queue.drop()

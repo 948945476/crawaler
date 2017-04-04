@@ -27,18 +27,22 @@ def Threaded_Crawler(seed_url, link_regex=None, delay=5, max_depth=-1, headers=N
 
     def process_queue():
     	#队列属性，如果能找出未标记为下载完毕的Url则为True
-	    while crawl_queue:
+	    while True:
 	        try:
 	        	url = crawl_queue.pop()
 	        except KeyError:
 	        	#当link存储队列发生异常时，说明没有url了，即可退出循环
 	        	break
 	        else:
-	        	html = D(url)
+	        	try:
+	        		html = D(url)
+	        	except:
+	        		print 'An exception occurred in the download'
+	        		crawl_queue.rollback(url)
 	        	#将url标记为请求完成，但是请求结果是否正确不确定
 	        	crawl_queue.complete(url)
 	        	links = []
-	        	if link_regex:
+	        	if link_regex and html:
 	        		links.extend(link for link in get_links(html) if re.match(link_regex, link))
 	        		for link in links:
 	        			link = normalize(seed_url, link)
